@@ -140,6 +140,7 @@ class PropertyScraperApp {
 
 // Main execution
 async function main() {
+  console.log('Starting property scraper...');
   const app = new PropertyScraperApp();
 
   try {
@@ -156,11 +157,12 @@ async function main() {
           maxPages: parseInt(args[2]) || 3,
           includeScrapeDo: args[3] !== 'false'
         });
-        console.log('\n📊 Summary:');
-        console.log(JSON.stringify(results, null, 2));
+        process.stdout.write('\n📊 Summary:\n');
+        process.stdout.write(JSON.stringify(results, null, 2) + '\n');
         break;
 
       case 'stats':
+        console.log('Fetching statistics...');
         const stats = await app.getStatistics();
         console.log('\n📈 Statistics:');
         console.log(JSON.stringify(stats, null, 2));
@@ -197,17 +199,25 @@ Examples:
     }
 
   } catch (error) {
+    console.error('Application error:', error);
     logger.error('Application error', error);
     console.error('❌ Error:', error.message);
+    console.error('Stack:', error.stack);
     process.exit(1);
   } finally {
+    console.log('Closing application...');
     await app.close();
   }
 }
 
 // Run if called directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main();
+  main().then(() => {
+    process.exit(0);
+  }).catch(error => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
 }
 
 export { PropertyScraperApp };

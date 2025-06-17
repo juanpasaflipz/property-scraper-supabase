@@ -21,7 +21,7 @@ export class MercadoLibreScraper {
       const $ = cheerio.load(response.data);
       const listings = [];
 
-      $('.ui-search-results__item').each((index, element) => {
+      $('.ui-search-layout__item').each((index, element) => {
         try {
           const listing = this.extractListing($, element);
           if (listing) {
