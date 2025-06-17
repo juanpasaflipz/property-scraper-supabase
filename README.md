@@ -1,15 +1,19 @@
 # Property Scraper with Supabase Integration
 
-A robust Node.js application that scrapes property listings from MercadoLibre and integrates with external data sources, storing everything in a Supabase PostgreSQL database.
+A robust Node.js application that scrapes property listings from multiple Mexican real estate portals (MercadoLibre and Lamudi) and integrates with external data sources, storing everything in a Supabase PostgreSQL database.
 
 ## Features
 
-- **MercadoLibre Scraper**: Extracts property listings with details like price, location, bedrooms, bathrooms, and area
-- **Scrape.do Integration**: Supports loading additional listings from JSON files or API
+- **Multi-Source Scraping**: 
+  - MercadoLibre: Mexico's largest real estate portal
+  - Lamudi: International property platform with Mexican listings
+- **Scrape.do Integration**: Bypasses anti-bot protection for reliable data extraction
 - **Supabase Database**: Stores all listings in PostgreSQL with proper schema and indexes
+- **Automated Scheduling**: 24-hour automated scraping with configurable schedule
 - **Deduplication**: Automatically handles duplicate listings based on ID
-- **Error Handling**: Comprehensive logging and error tracking
-- **Statistics**: Built-in analytics for property data
+- **RESTful API**: Manual triggers and real-time statistics
+- **Error Handling**: Comprehensive logging and fallback mechanisms
+- **Statistics**: Built-in analytics for property data by source
 
 ## Setup Instructions
 
@@ -50,15 +54,15 @@ Create the properties table and indexes:
 npm run migrate
 ```
 
-### 4. Run the Scraper
+### 4. Run the Scrapers
 
-Basic usage:
+#### Manual Scraping
+
+**MercadoLibre:**
 ```bash
+# Basic usage
 npm start
-```
 
-With custom parameters:
-```bash
 # Scrape specific URL with 5 pages
 node src/index.js scrape "https://inmuebles.mercadolibre.com.mx/departamentos/renta/" 5
 
@@ -69,26 +73,78 @@ node src/index.js stats
 node src/index.js search 1000000 5000000 3
 ```
 
+**Lamudi:**
+```bash
+# Scrape Lamudi México
+node src/scrapers/lamudi-scraper.js "mexico city" "rent"
+node src/scrapers/lamudi-scraper.js "guadalajara" "sale"
+node src/scrapers/lamudi-scraper.js "monterrey" "rent"
+```
+
+#### Automated Multi-Source Scraping
+
+The system includes a 24-hour automated scraper that runs both MercadoLibre and Lamudi:
+
+```bash
+# Run all sources once
+node src/scheduler-multi-source.js run
+
+# Start continuous 24-hour scheduler
+node src/scheduler-multi-source.js start
+
+# View statistics for all sources
+node src/scheduler-multi-source.js stats
+
+# Configure schedule (default: 2 AM daily)
+CRON_SCHEDULE="0 */6 * * *" node src/scheduler-multi-source.js start  # Every 6 hours
+```
+
+#### API Server
+
+Start the RESTful API for manual triggers and monitoring:
+
+```bash
+# Start API server on port 3001
+node src/api/scraper-api-multi-source.js
+
+# Or with custom port
+PORT=8080 node src/api/scraper-api-multi-source.js
+```
+
+API Endpoints:
+- `POST /api/scrape` - Trigger all sources
+- `POST /api/scrape/mercadolibre` - Trigger MercadoLibre only
+- `POST /api/scrape/lamudi` - Trigger Lamudi only
+- `GET /api/stats` - Get statistics for all sources
+- `GET /api/new-listings?hours=24&source=lamudi` - Recent listings
+- `GET /api/search?city=guadalajara&minPrice=5000` - Search listings
+
 ## Database Schema
 
 The `properties` table includes:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| id | TEXT | Primary key (unique identifier) |
+| id | SERIAL | Auto-incrementing primary key |
+| external_id | TEXT | Unique identifier from source |
 | title | TEXT | Property title/headline |
-| price | NUMERIC | Property price |
-| address | TEXT | Location/address |
+| price | TEXT | Property price (stored as string) |
+| currency | TEXT | Currency (MXN or USD) |
+| location | TEXT | Full address/location |
+| city | TEXT | City name |
+| state | TEXT | State/province name |
+| country | TEXT | Country (default: Mexico) |
 | bedrooms | INTEGER | Number of bedrooms |
 | bathrooms | INTEGER | Number of bathrooms |
-| area_sqm | NUMERIC | Area in square meters |
-| source | TEXT | Data source (e.g., 'mercadolibre', 'scrapedo') |
-| url | TEXT | Original listing URL |
-| property_type | TEXT | Type of property (Casa, Departamento, etc.) |
-| fetched_at | TIMESTAMP | Last fetch timestamp |
+| size | TEXT | Property size (m²) |
+| property_type | TEXT | Type (Casa, Departamento, etc.) |
+| link | TEXT | Original listing URL |
+| description | TEXT | Property description |
+| image_url | TEXT | Main property image |
+| source | TEXT | Data source ('mercadolibre', 'lamudi') |
 | created_at | TIMESTAMP | Record creation time |
 | updated_at | TIMESTAMP | Last update time |
-| raw_data | JSONB | Original raw data |
+| last_seen_at | TIMESTAMP | Last time listing was active |
 
 ## API Usage
 
