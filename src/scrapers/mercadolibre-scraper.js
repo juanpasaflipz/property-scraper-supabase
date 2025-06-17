@@ -68,11 +68,65 @@ export class MercadoLibreScraper {
                      $el.find('[class*="location"]').text().trim() || 
                      'México';
 
-    // Extract attributes
+    // Extract attributes - try multiple selectors as MercadoLibre changes their HTML
     const attributes = [];
-    $el.find('.ui-search-card-attributes__attribute').each((i, attr) => {
-      attributes.push($(attr).text().trim());
-    });
+    
+    // Try different attribute selectors
+    const attributeSelectors = [
+      '.poly-attributes_list__item',
+      '.ui-search-card-attributes__attribute',
+      '.ui-search-attributes__attribute',
+      '[class*="attribute"][class*="item"]'
+    ];
+    
+    let foundAttributes = false;
+    for (const selector of attributeSelectors) {
+      const elements = $el.find(selector);
+      if (elements.length > 0) {
+        elements.each((i, attr) => {
+          const text = $(attr).text().trim();
+          if (text) {
+            attributes.push(text);
+          }
+        });
+        foundAttributes = true;
+        break;
+      }
+    }
+    
+    // If no attributes found with specific selectors, try to find them in a container
+    if (!foundAttributes) {
+      const containerSelectors = [
+        '.poly-component__attributes-list',
+        '.poly-attributes_list',
+        '.ui-search-card-attributes'
+      ];
+      
+      for (const containerSelector of containerSelectors) {
+        const container = $el.find(containerSelector).first();
+        if (container.length > 0) {
+          // Look for text that matches patterns
+          const containerText = container.text();
+          const patterns = [
+            /(\d+)\s*(recámaras?|habitacion(?:es)?)/gi,
+            /(\d+)\s*(baños?)/gi,
+            /(\d+(?:\s*-\s*\d+)?)\s*m²/gi
+          ];
+          
+          patterns.forEach(pattern => {
+            const matches = containerText.matchAll(pattern);
+            for (const match of matches) {
+              attributes.push(match[0].trim());
+            }
+          });
+          
+          if (attributes.length > 0) {
+            foundAttributes = true;
+            break;
+          }
+        }
+      }
+    }
 
     // Parse attributes
     let size = null;
@@ -80,25 +134,40 @@ export class MercadoLibreScraper {
     let bathrooms = null;
 
     attributes.forEach(attr => {
-      // Area/Size
-      const sizeMatch = attr.match(/(\d+)\s*m²/);
+      // Area/Size - handle ranges like "286 - 298 m²"
+      const sizeMatch = attr.match(/(\d+)(?:\s*-\s*(\d+))?\s*m²/);
       if (sizeMatch) {
-        size = parseInt(sizeMatch[1]);
+        if (sizeMatch[2]) {
+          // If it's a range, take the average
+          size = Math.round((parseInt(sizeMatch[1]) + parseInt(sizeMatch[2])) / 2);
+        } else {
+          size = parseInt(sizeMatch[1]);
+        }
       }
 
       // Bedrooms
       if (attr.toLowerCase().includes('recámara') || attr.toLowerCase().includes('habitación')) {
-        const numMatch = attr.match(/(\d+)/);
+        const numMatch = attr.match(/(\d+)(?:\s*a\s*(\d+))?/);
         if (numMatch) {
-          bedrooms = parseInt(numMatch[1]);
+          if (numMatch[2]) {
+            // If it's a range like "3 a 4", take the first number
+            bedrooms = parseInt(numMatch[1]);
+          } else {
+            bedrooms = parseInt(numMatch[1]);
+          }
         }
       }
 
       // Bathrooms
       if (attr.toLowerCase().includes('baño')) {
-        const numMatch = attr.match(/(\d+)/);
+        const numMatch = attr.match(/(\d+)(?:\s*a\s*(\d+))?/);
         if (numMatch) {
-          bathrooms = parseInt(numMatch[1]);
+          if (numMatch[2]) {
+            // If it's a range like "3 a 4", take the first number
+            bathrooms = parseInt(numMatch[1]);
+          } else {
+            bathrooms = parseInt(numMatch[1]);
+          }
         }
       }
     });
