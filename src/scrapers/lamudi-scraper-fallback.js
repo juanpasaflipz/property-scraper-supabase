@@ -83,7 +83,7 @@ export class LamudiScraperWithFallback {
    */
   buildSearchUrl(city, type) {
     const citySlug = this.getCitySlug(city);
-    const typeSlug = type === 'rent' ? 'renta' : 'venta';
+    const typeSlug = type === 'rent' ? 'for-rent' : 'for-sale';
     return `${this.baseUrl}/${citySlug}/${typeSlug}/`;
   }
 
@@ -151,6 +151,8 @@ export class LamudiScraperWithFallback {
 
       // Lamudi selectors
       const listingSelectors = [
+        '.listings__cards > div',
+        '.listings__cards > a',
         '.ListingCell-row',
         '.js-listing-link',
         'div[data-listing-id]',
@@ -158,7 +160,10 @@ export class LamudiScraperWithFallback {
         'article.listing',
         '.property-card',
         '.ui-listing-card',
-        '.result-list-item'
+        '.result-list-item',
+        '[data-test="result-listing"]',
+        '.listings-container .listing',
+        'div[itemtype="http://schema.org/Residence"]'
       ];
 
       let listingElements = $();
@@ -168,6 +173,13 @@ export class LamudiScraperWithFallback {
           this.logger.info('Found listings with selector', { selector, count: listingElements.length });
           break;
         }
+      }
+
+      if (listingElements.length === 0) {
+        this.logger.info('No listings found with standard selectors, checking HTML', { 
+          htmlLength: html.length,
+          preview: html.substring(0, 500).replace(/\s+/g, ' ')
+        });
       }
 
       listingElements.each((_, element) => {
@@ -334,7 +346,7 @@ export class LamudiScraperWithFallback {
       try {
         return await this.fetchWithScrapeDo(url);
       } catch (error) {
-        this.logger.warn('Scrape.do failed, falling back to direct fetch', { error: error.message });
+        this.logger.info('Scrape.do failed, falling back to direct fetch', { error: error.message });
         return await this.fetchDirect(url);
       }
     } else {
@@ -350,8 +362,7 @@ export class LamudiScraperWithFallback {
       params: {
         token: this.token,
         url: url,
-        render: true,
-        premium: true,
+        render: 'true',
         geoCode: 'mx'
       },
       timeout: 60000

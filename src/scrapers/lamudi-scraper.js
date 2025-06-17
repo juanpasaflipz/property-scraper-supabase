@@ -125,7 +125,7 @@ export class LamudiScraper {
    */
   buildSearchUrl(city, type) {
     const citySlug = this.getCitySlug(city);
-    const typeSlug = type === 'rent' ? 'renta' : 'venta';
+    const typeSlug = type === 'rent' ? 'for-rent' : 'for-sale';
     return `${this.baseUrl}/${citySlug}/${typeSlug}/`;
   }
 
@@ -193,6 +193,8 @@ export class LamudiScraper {
 
       // Lamudi uses different selectors, try multiple
       const listingSelectors = [
+        '.listings__cards > div',
+        '.listings__cards > a',
         '.ListingCell-row',
         '.js-listing-link',
         'div[data-listing-id]',
@@ -241,8 +243,8 @@ export class LamudiScraper {
     const $el = $(element);
 
     // Extract link and ID
-    const linkElement = $el.find('a').first();
-    const link = linkElement.attr('href') || $el.attr('href') || '';
+    const linkElement = $el.find('a[href]').first();
+    const link = linkElement.attr('href') || '';
     
     if (!link) {
       this.logger.debug('No link found for listing');
@@ -251,34 +253,38 @@ export class LamudiScraper {
 
     const fullLink = link.startsWith('http') ? link : `${this.baseUrl}${link}`;
     
-    // Generate ID from URL
+    // Generate ID from URL - handle both /desarrollo/ and /detalle/ URLs
     const urlParts = link.split('/');
     const slug = urlParts[urlParts.length - 1] || urlParts[urlParts.length - 2];
     const external_id = `LAMUDI-${slug}`.replace(/[^a-zA-Z0-9-]/g, '').substring(0, 50);
 
     if (!external_id || external_id === 'LAMUDI-') return null;
 
-    // Extract title
-    const title = $el.find('.ListingCell-KeyInfo-title, .js-listing-link, h3, h2, .listing-title, .property-title').first().text().trim() || 
-                  $el.find('[class*="title"]').first().text().trim() || 
-                  'Sin título';
+    // Extract title from image alt or text content
+    const imgAlt = $el.find('img').first().attr('alt') || '';
+    const textContent = $el.text().replace(/\s+/g, ' ').trim();
+    
+    let title = imgAlt.trim();
+    if (!title) {
+      // Try to extract from text content, looking for property type
+      const titleMatch = textContent.match(/(Casa|Departamento|Local|Oficina|Bodega|Terreno)[^,]+/i);
+      title = titleMatch ? titleMatch[0].trim() : 'Sin título';
+    }
 
-    // Extract price
-    const priceText = $el.find('.PriceSection-FirstPrice, .listing-price, [class*="price"]').first().text().trim();
-    const priceMatch = priceText.match(/[\d,]+/);
-    const price = priceMatch ? priceMatch[0].replace(/,/g, '') : '0';
-    const currency = priceText.includes('USD') ? 'USD' : 'MXN';
+    // Extract price from text content
+    const priceMatch = textContent.match(/\$[\d,]+(\s*(MXN|USD|pesos))?/);
+    const price = priceMatch ? priceMatch[0].replace(/[^\d]/g, '') : '0';
+    const currency = priceMatch && priceMatch[0].includes('USD') ? 'USD' : 'MXN';
 
-    // Extract location
-    const location = $el.find('.ListingCell-KeyInfo-address, .listing-location, [class*="location"], [class*="address"]').text().trim() || 
-                     'México';
+    // Extract location from text content
+    const locationMatch = textContent.match(/([^,]+),\s*([^,]+),\s*Ciudad de México/);
+    const location = locationMatch ? locationMatch[0] : 'Ciudad de México';
 
     // Parse location
     const locationParts = this.parseLocation(location);
 
-    // Extract attributes container
-    const attributesContainer = $el.find('.KeyInformation-attribute, .listing-features, [class*="feature"], .amenities');
-    const attributesText = attributesContainer.text();
+    // Use the text content for attributes
+    const attributesText = textContent;
     
     // Extract bedrooms
     let bedrooms = 0;
@@ -357,13 +363,14 @@ export class LamudiScraper {
 
     // Extract image
     const imageElement = $el.find('img').first();
-    const image_url = imageElement.attr('data-src') || 
-                      imageElement.attr('src') || 
+    const image_url = imageElement.attr('src') || 
+                      imageElement.attr('data-src') || 
                       imageElement.attr('data-original') ||
                       '';
 
-    // Extract description
-    const description = $el.find('.ListingCell-shortDescription, .listing-description, [class*="description"]').text().trim() || 
+    // Extract description from text content
+    const description = textContent.length > 100 ? 
+                       textContent.substring(0, 300).trim() + '...' : 
                        `${title} - ${location}`;
 
     // Determine property type from title or attributes
@@ -471,14 +478,9 @@ export class LamudiScraper {
       const response = await axios.get(this.scrapeDoUrl, {
         params: {
           token: this.token,
-          url: url,
-          render: true,
-          premium: true,
-          geoCode: 'mx',
-          // Mobile user agent for better anti-bot evasion
-          customHeaders: JSON.stringify({
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1'
-          })
+          url: url,  // Don't encode here, axios will handle it
+          render: 'true',
+          geoCode: 'mx'
         },
         timeout: 60000
       });
