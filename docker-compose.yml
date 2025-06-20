@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  property-scraper:
+    build: .
+    container_name: property-scraper
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - SCRAPED_API_KEY=${SCRAPED_API_KEY}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - scraper-network
+    healthcheck:
+      test: ["CMD", "node", "scripts/health-check.js"]
+      interval: 5m
+      timeout: 30s
+      retries: 3
+
+  cron-scheduler:
+    build: .
+    container_name: scraper-cron
+    restart: unless-stopped
+    command: node src/services/automated-scraper.js
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - scraper-network
+    depends_on:
+      - property-scraper
+
+networks:
+  scraper-network:
+    driver: bridge
+
+volumes:
+  logs:
+  data:
