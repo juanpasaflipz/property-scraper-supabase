@@ -227,15 +227,40 @@ export class MercadoLibreMaximizedScraper {
         
         this.logger.info(`Scraping page ${page}/${pageLimit}`, { url: pageUrl });
         
+        // Add delay between requests to avoid rate limiting
+        if (page > 1) {
+          await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+        }
+        
         const response = await axios.get(pageUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept-Language': 'es-MX,es;q=0.9,en;q=0.8',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"macOS"',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1'
           },
-          timeout: 30000
+          timeout: 45000,
+          maxRedirects: 5,
+          validateStatus: (status) => status < 500
         });
 
+        // Check for 400 errors
+        if (response.status === 400) {
+          this.logger.warn(`Received 400 error, may be rate limited. Waiting longer...`);
+          await new Promise(resolve => setTimeout(resolve, 10000 + Math.random() * 5000));
+          continue;
+        }
+        
         const $ = cheerio.load(response.data);
         const listings = this.extractListings($);
         
@@ -261,6 +286,13 @@ export class MercadoLibreMaximizedScraper {
         }
       } catch (error) {
         this.logger.error(`Failed to scrape page ${page}`, error);
+        
+        // If we get too many errors in a row, add a longer delay
+        if (error.response?.status === 400 || error.code === 'ETIMEDOUT') {
+          this.logger.warn(`Rate limit or timeout detected, waiting 15 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 15000));
+        }
+        
         // Continue with next page instead of stopping
       }
     }

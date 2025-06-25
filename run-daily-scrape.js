@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import fs from 'fs/promises';
 dotenv.config();
 
 import { Database } from './src/db/database.js';
@@ -130,7 +131,7 @@ async function runDailyScrape() {
       searchesRun: searchesToRun.length
     };
     
-    await require('fs/promises').writeFile(
+    await fs.writeFile(
       'daily-scrape-log.json',
       JSON.stringify(state, null, 2)
     );
