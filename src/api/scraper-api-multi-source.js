@@ -1,5 +1,6 @@
 import express from 'express';
 import { AutomatedScraperMultiSource } from '../services/automated-scraper-multi-source.js';
+import { scrapeBR23 } from '../scrapers/br23-scraper.js';
 import { Logger } from '../utils/logger.js';
 
 const logger = new Logger('MultiSourceScraperAPI');
@@ -30,7 +31,7 @@ export function createMultiSourceScraperAPI() {
       res.json({
         status: 'started',
         message: 'Multi-source scraping job started in background',
-        sources: ['mercadolibre', 'lamudi']
+        sources: ['mercadolibre', 'lamudi', 'br23']
       });
     } catch (error) {
       res.status(500).json({
@@ -45,10 +46,10 @@ export function createMultiSourceScraperAPI() {
     try {
       const source = req.params.source.toLowerCase();
       
-      if (!['mercadolibre', 'lamudi'].includes(source)) {
+      if (!['mercadolibre', 'lamudi', 'br23'].includes(source)) {
         return res.status(400).json({
           status: 'error',
-          message: 'Invalid source. Must be "mercadolibre" or "lamudi"'
+          message: 'Invalid source. Must be "mercadolibre", "lamudi", or "br23"'
         });
       }
 
@@ -72,8 +73,12 @@ export function createMultiSourceScraperAPI() {
           }
           
           return { total: listings.length, new: newCount, updated: updateCount };
-        } else {
+        } else if (source === 'lamudi') {
           return await service.scrapeLamudi({});
+        } else {
+          // BR23
+          const result = await scrapeBR23('all', 5, true);
+          return { total: result.total, new: result.saved, updated: 0, errors: result.errors };
         }
       };
 
@@ -150,7 +155,7 @@ export function createMultiSourceScraperAPI() {
       const source = req.query.source;
       
       let whereClause = `created_at > NOW() - INTERVAL '${hours} hours'`;
-      if (source && ['mercadolibre', 'lamudi'].includes(source)) {
+      if (source && ['mercadolibre', 'lamudi', 'br23'].includes(source)) {
         whereClause += ` AND source = '${source}'`;
       }
       

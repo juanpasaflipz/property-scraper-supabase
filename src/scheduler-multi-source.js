@@ -34,7 +34,7 @@ class MultiSourceScraperScheduler {
 
     logger.info('Multi-source scheduler started', { 
       schedule,
-      sources: ['mercadolibre', 'lamudi']
+      sources: ['mercadolibre', 'lamudi', 'br23']
     });
 
     // Keep the process running

@@ -3,6 +3,7 @@ import { PropertyRepositoryCSV } from '../db/property-repository-csv.js';
 import { MercadoLibreScraperImproved } from '../scrapers/mercadolibre-scraper-improved.js';
 import { ScrapedoMercadoLibreScraper } from '../scrapers/scrapedo-mercadolibre.js';
 import { LamudiScraperWithFallback } from '../scrapers/lamudi-scraper-fallback.js';
+import { scrapeBR23 } from '../scrapers/br23-scraper.js';
 import { Logger } from '../utils/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
@@ -30,7 +31,7 @@ export class AutomatedScraperMultiSource {
     this.repository = new PropertyRepositoryCSV(this.db);
     this.logger.info('Multi-source automated scraper service initialized', {
       useScrapeDo: this.useScrapeDo,
-      sources: ['mercadolibre', 'lamudi']
+      sources: ['mercadolibre', 'lamudi', 'br23']
     });
   }
 
@@ -47,7 +48,8 @@ export class AutomatedScraperMultiSource {
         runs: [],
         sources: {
           mercadolibre: { total: 0, new: 0, updated: 0 },
-          lamudi: { total: 0, new: 0, updated: 0 }
+          lamudi: { total: 0, new: 0, updated: 0 },
+          br23: { total: 0, new: 0, updated: 0 }
         }
       };
     }
@@ -218,12 +220,22 @@ export class AutomatedScraperMultiSource {
 
       runSummary.sources.lamudi = lamudiResult;
 
+      // 3. Scrape BR23
+      this.logger.info('Starting BR23 scraping');
+      const br23Result = await scrapeBR23('all', 5, true);
+      runSummary.sources.br23 = {
+        total: br23Result.total,
+        new: br23Result.saved,
+        updated: 0,
+        errors: br23Result.errors
+      };
+
       // Calculate totals
       runSummary.duration = Math.round((Date.now() - startTime) / 1000);
       
-      const totalNew = runSummary.sources.mercadolibre.new + runSummary.sources.lamudi.new;
-      const totalUpdated = runSummary.sources.mercadolibre.updated + runSummary.sources.lamudi.updated;
-      const totalScraped = runSummary.sources.mercadolibre.total + runSummary.sources.lamudi.total;
+      const totalNew = runSummary.sources.mercadolibre.new + runSummary.sources.lamudi.new + runSummary.sources.br23.new;
+      const totalUpdated = runSummary.sources.mercadolibre.updated + runSummary.sources.lamudi.updated + runSummary.sources.br23.updated;
+      const totalScraped = runSummary.sources.mercadolibre.total + runSummary.sources.lamudi.total + runSummary.sources.br23.total;
 
       // Update state
       state.lastRun = runSummary.timestamp;
