@@ -256,7 +256,7 @@ export class MercadoLibreMaximizedScraper {
 
         // Check for 400 errors
         if (response.status === 400) {
-          this.logger.warn(`Received 400 error, may be rate limited. Waiting longer...`);
+          this.logger.info(`Received 400 error, may be rate limited. Waiting longer...`);
           await new Promise(resolve => setTimeout(resolve, 10000 + Math.random() * 5000));
           continue;
         }
@@ -289,7 +289,7 @@ export class MercadoLibreMaximizedScraper {
         
         // If we get too many errors in a row, add a longer delay
         if (error.response?.status === 400 || error.code === 'ETIMEDOUT') {
-          this.logger.warn(`Rate limit or timeout detected, waiting 15 seconds...`);
+          this.logger.info(`Rate limit or timeout detected, waiting 15 seconds...`);
           await new Promise(resolve => setTimeout(resolve, 15000));
         }
         

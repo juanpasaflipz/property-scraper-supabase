@@ -1,4 +1,4 @@
-module.exports = {
+export default {
   apps: [{
     name: 'property-scraper',
     script: './src/index.js',
